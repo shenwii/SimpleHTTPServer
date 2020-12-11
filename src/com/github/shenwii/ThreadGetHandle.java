@@ -3,22 +3,16 @@ package com.github.shenwii;
 import java.io.*;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
-import java.util.TimeZone;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 
 public class ThreadGetHandle implements ThreadMethodHandle {
 	
-	private final static int BUFFER_LEN = 4096;
-	private final static String GMT_FORMAT = "EEE, d MMM yyyy HH:mm:ss 'GMT'";
+	private final static int BUFFER_LEN = 4096 * 4096;
 	
 	private final HttpExchange exchange;
 	
@@ -89,66 +83,6 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	}
 
 	/**
-	 * 将二进制的md5转成字符串形式
-	 * @param md
-	 * @return
-	 */
-    private String md5String(byte[] md) {
-    	char[] hexDigits = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-        int j = md.length;
-        char[] buf = new char[j * 2];
-        int k = 0;
-        for(byte b: md) {
-			buf[k++] = hexDigits[b >>> 4 & 0xf];
-			buf[k++] = hexDigits[b & 0xf];
-		}
-        return new String(buf);
-    }
-
-	/**
-	 * 计算文件的md5值
-	 * @param file
-	 * @return
-	 * @throws IOException
-	 */
-	private String md5Sum(File file) throws IOException {
-		FileInputStream fis = null;
-		MessageDigest md = null;
-		try {
-			md = MessageDigest.getInstance("MD5");
-		} catch (NoSuchAlgorithmException e) { }
-		try {
-			int c;
-			byte[] buffer = new byte[BUFFER_LEN];
-			fis = new FileInputStream(file);
-			while((c = fis.read(buffer)) > 0) {
-				md.update(buffer, 0, c);
-			}
-			return md5String(md.digest());
-		} catch (IOException e) {
-			throw e;
-		} finally {
-			if(fis != null)
-				try {
-					fis.close();
-				} catch(IOException e) {
-					e.printStackTrace();
-				}
-		}
-	}
-
-	/**
-	 * 将日期以GMT格式返回
-	 * @param date
-	 * @return
-	 */
-	private String dateToString(Date date) {
-		SimpleDateFormat sdf = new SimpleDateFormat(GMT_FORMAT, Locale.US);
-		sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
-		return sdf.format(date);
-	}
-
-	/**
 	 * 解析文件，返回文件内容
 	 * 支持断点续传功能
 	 * @param exchange
@@ -157,8 +91,8 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	 */
 	private void doParseFile(HttpExchange exchange, File file) throws IOException {
 		setFileContext(exchange.getResponseHeaders(), file);
-		String md5 = md5Sum(file);
-		String modifiedDate = dateToString(new Date(file.lastModified()));
+		String md5 = Utils.md5Sum(file);
+		String modifiedDate = Utils.dateToString(new Date(file.lastModified()));
 		exchange.getResponseHeaders().set("accept-ranges", "bytes");
 		exchange.getResponseHeaders().set("ETag", md5);
 		exchange.getResponseHeaders().set("Last-Modified", modifiedDate);

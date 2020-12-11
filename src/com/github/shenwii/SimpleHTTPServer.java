@@ -16,7 +16,7 @@ public class SimpleHTTPServer{
 				break;
 			case 1:
 				try {
-					port = Integer.valueOf(args[i]);
+					port = Integer.parseInt(args[i]);
 				} catch(NumberFormatException e) {
 					usage();
 				}
