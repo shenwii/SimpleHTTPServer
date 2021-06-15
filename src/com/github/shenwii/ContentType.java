@@ -292,7 +292,7 @@ public class ContentType {
 			put("spp", "text/xml");
 			put("sst", "application/vnd.ms-pki.certstore");
 			put("stm", "text/html");
-			put("svg", "text/xml");
+			put("svg", "image/svg+xml");
 			put("tdf", "application/x-tdf");
 			put("tga", "application/x-tga");
 			put("tld", "text/xml");
