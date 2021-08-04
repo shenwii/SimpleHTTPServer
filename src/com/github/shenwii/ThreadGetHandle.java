@@ -3,9 +3,7 @@ package com.github.shenwii;
 import java.io.*;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
@@ -15,7 +13,10 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	private final static int BUFFER_LEN = 4096 * 4096;
 	
 	private final HttpExchange exchange;
-	
+
+	private final static Map<String, FileDto> fileCache = new HashMap<>();
+	Object fileCacheLocker = new Object();
+
 	public ThreadGetHandle(HttpExchange exchange) {
 		this.exchange = exchange;
 	}
@@ -26,8 +27,10 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 			System.out.println(new Date().toString() + "\t" + exchange.getRemoteAddress().getHostString() + "\t" + "GET " + URLDecoder.decode(exchange.getRequestURI().getPath(), Utils.ENCODE.name()));
 			File accessedFile = new File(new File(".").getPath() + URLDecoder.decode(exchange.getRequestURI().getPath(), Utils.ENCODE.name()));
 			//当访问的资源不存在时，返回404
-			if(!accessedFile.exists())
+			if(!accessedFile.exists()) {
 				doNotFound(exchange);
+				return;
+			}
 			if(accessedFile.isDirectory()) {
 				//当访问的资源为文件夹时，判断该文件夹下是否存在index.html
 				//如果存在index.html文件时，则返回index.html作为前端页面
@@ -41,7 +44,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 				//如果该资源为文件时，则直接返回该文件内容
 				doParseFile(exchange, accessedFile);
 			}
-		} catch(IOException e) {
+		} catch(IOException | InterruptedException e) {
 			String responString = e.getMessage();
 			byte[] responBytes = Utils.toBytes(responString);
 			Utils.setHtmlContext(exchange.getResponseHeaders());
@@ -50,8 +53,9 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 				exchange.getResponseBody().write(responBytes);
 				exchange.getRequestBody().close();
 			} catch(IOException e1) {}
+		} finally {
+			exchange.close();
 		}
-		exchange.close();
 	}
 
 	/**
@@ -89,10 +93,31 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	 * @param file
 	 * @throws IOException
 	 */
-	private void doParseFile(HttpExchange exchange, File file) throws IOException {
+	private void doParseFile(HttpExchange exchange, File file) throws IOException, InterruptedException {
 		setFileContext(exchange.getResponseHeaders(), file);
-		String md5 = Utils.md5Sum(file);
-		String modifiedDate = Utils.dateToString(new Date(file.lastModified()));
+		FileDto fileDto = null;
+		synchronized (fileCacheLocker) {
+			fileDto = fileCache.get(file.getAbsolutePath());
+			if((fileDto == null) || (file.lastModified() != fileDto.getLastModified() || file.length() != fileDto.getFileSize())) {
+				fileDto = new FileDto();
+				fileDto.setFile(file);
+				fileDto.setLastModified(file.lastModified());
+				fileDto.setFileSize(file.length());
+				fileDto.setHandling(true);
+				fileCache.put(file.getAbsolutePath(), fileDto);
+				FileMd5sumThread fileMd5sumThread = new FileMd5sumThread(fileDto);
+				new Thread(fileMd5sumThread).start();
+			}
+		}
+		synchronized (fileDto) {
+			if(fileDto.isHandling) {
+				fileDto.wait();
+			}
+		}
+		String md5 = fileDto.getMd5();
+		if(md5 == null)
+			throw new IOException("计算MD5失败");
+		String modifiedDate = Utils.dateToString(new Date(fileDto.getLastModified()));
 		exchange.getResponseHeaders().set("accept-ranges", "bytes");
 		exchange.getResponseHeaders().set("ETag", md5);
 		exchange.getResponseHeaders().set("Last-Modified", modifiedDate);
@@ -202,9 +227,6 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 		html.append("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=" + Utils.ENCODE.name() + "\" />\n");
 		html.append("<body>\n");
 		html.append("<h2>Directory listing for " + url + "</h2>\n");
-		html.append("<form>\n");
-		html.append("<input type='file' name='file'>\n");
-		html.append("</form>\n");
 		html.append("<hr>\n");
 		html.append("<ul>\n");
 		List<File> files = Arrays.asList(dir.listFiles());
@@ -245,5 +267,75 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 			ct = ContentType.getContentType(s);
 		}
 		headers.set("Content-type", ct);
+	}
+
+	class FileDto {
+		private File file;
+		private long lastModified;
+		private long fileSize;
+		private String md5;
+		private boolean isHandling;
+
+		public File getFile() {
+			return file;
+		}
+
+		public void setFile(File file) {
+			this.file = file;
+		}
+
+		public long getLastModified() {
+			return lastModified;
+		}
+
+		public void setLastModified(long lastModified) {
+			this.lastModified = lastModified;
+		}
+
+		public long getFileSize() {
+			return fileSize;
+		}
+
+		public void setFileSize(long fileSize) {
+			this.fileSize = fileSize;
+		}
+
+		public String getMd5() {
+			return md5;
+		}
+
+		public void setMd5(String md5) {
+			this.md5 = md5;
+		}
+
+		public boolean isHandling() {
+			return isHandling;
+		}
+
+		public void setHandling(boolean handling) {
+			isHandling = handling;
+		}
+	}
+
+	class FileMd5sumThread extends Thread {
+		final private FileDto fileDto;
+
+		public FileMd5sumThread(FileDto fileDto) {
+			this.fileDto = fileDto;
+		}
+
+		@Override
+		public void run() {
+			String md5 = null;
+			try{
+				md5 = Utils.md5Sum(fileDto.getFile());
+			} catch (IOException e) {
+			}
+			synchronized (fileDto) {
+				fileDto.setMd5(md5);
+				fileDto.notifyAll();
+				fileDto.setHandling(false);
+			}
+		}
 	}
 }

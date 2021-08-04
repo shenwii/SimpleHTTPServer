@@ -18,7 +18,7 @@ public class SimpleHTTPHandle implements HttpHandler {
 	
 	@Override
 	public void handle(HttpExchange exchange) throws IOException {
-		exchange.getResponseHeaders().add("Server", "Simple HTTP Server By Shenw/1.0");
+		exchange.getResponseHeaders().add("Server", "Simple HTTP Server By Shenw/" + SimpleHTTPServer.VERSION);
 		//判断http method类型，现在只支持get方法，其他方法会返回405
 		if("GET".equals(exchange.getRequestMethod()))
 			executor.execute(new ThreadGetHandle(exchange));
@@ -40,5 +40,4 @@ public class SimpleHTTPHandle implements HttpHandler {
 		exchange.getRequestBody().close();
 		exchange.close();
 	}
-	
 }
