@@ -4,8 +4,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -15,12 +15,12 @@ import com.sun.net.httpserver.Headers;
 
 public class Utils {
 	
-	public final static Charset ENCODE = Charset.forName("UTF-8");
+	public final static Charset ENCODE = StandardCharsets.UTF_8;
 
 	/**
 	 * 将String类型转成UTF-8的byte数组
-	 * @param inStr
-	 * @return
+	 * @param inStr 字符串
+	 * @return byte数组
 	 */
 	public static byte[] toBytes(String inStr) {
 		return inStr.getBytes(ENCODE);
@@ -28,7 +28,7 @@ public class Utils {
 
 	/**
 	 * 设置HTML头的Content-type
-	 * @param headers
+	 * @param headers http头
 	 */
 	public static void setHtmlContext(Headers headers) {
 		headers.set("Content-type", "text/html; charset=UTF-8");
@@ -36,8 +36,8 @@ public class Utils {
 
 	/**
 	 * 将日期以GMT格式返回
-	 * @param date
-	 * @return
+	 * @param date 日期
+	 * @return 字符串
 	 */
 	public static String dateToString(Date date) {
 		final String GMT_FORMAT = "EEE, d MMM yyyy HH:mm:ss 'GMT'";
@@ -48,8 +48,8 @@ public class Utils {
 
 	/**
 	 * 将二进制的md5转成字符串形式
-	 * @param md
-	 * @return
+	 * @param md byte数组
+	 * @return 字符串
 	 */
 	public static String md5String(byte[] md) {
 		char[] hexDigits = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
@@ -65,17 +65,14 @@ public class Utils {
 
 	/**
 	 * 计算文件的md5值
-	 * @param file
-	 * @return
-	 * @throws IOException
+	 * @param file 文件
+	 * @return 文件的MD5值
+	 * @throws IOException IO异常
 	 */
-	public static String md5Sum(File file) throws IOException {
+	public static String md5Sum(File file) throws Exception {
 		final int BUFFER_LEN = 4096 * 4096;
 		FileInputStream fis = null;
-		MessageDigest md = null;
-		try {
-			md = MessageDigest.getInstance("MD5");
-		} catch (NoSuchAlgorithmException e) { }
+		MessageDigest md = MessageDigest.getInstance("MD5");
 		try {
 			int c;
 			byte[] buffer = new byte[BUFFER_LEN];
@@ -84,8 +81,6 @@ public class Utils {
 				md.update(buffer, 0, c);
 			}
 			return md5String(md.digest());
-		} catch (IOException e) {
-			throw e;
 		} finally {
 			if(fis != null)
 				try {

@@ -19,15 +19,13 @@ public class SimpleHTTPHandle implements HttpHandler {
 			String p = System.getProperty("SimpleHTTPServer.staticThread");
 			if(p != null)
 				staticThread = Integer.parseInt(p);
-		} catch (Exception e) {}
+		} catch (Exception ignore) {}
 		try {
 			String p = System.getProperty("SimpleHTTPServer.maxThread");
 			if(p != null)
 				maxThread = Integer.parseInt(p);
-		} catch (Exception e) {}
-		System.out.println("debug: staticThread = " + staticThread);
-		System.out.println("debug: maxThread = " + maxThread);
-		executor = new ThreadPoolExecutor(staticThread, maxThread, 60, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(50));
+		} catch (Exception ignore) {}
+		executor = new ThreadPoolExecutor(staticThread, maxThread, 60, TimeUnit.SECONDS, new ArrayBlockingQueue<>(50));
 	}
 	
 	@Override
@@ -42,15 +40,15 @@ public class SimpleHTTPHandle implements HttpHandler {
 
 	/**
 	 * 返回405响应
-	 * @param exchange
-	 * @throws IOException
+	 * @param exchange 交换
+	 * @throws IOException IO异常
 	 */
 	private void doMethodNotAllowed(HttpExchange exchange) throws IOException {
-		String responString = "Method '" + exchange.getRequestMethod() + "' Not Supported";
-		byte[] responBytes = Utils.toBytes(responString);
+		String responseString = "Method '" + exchange.getRequestMethod() + "' Not Supported";
+		byte[] responseBytes = Utils.toBytes(responseString);
 		Utils.setHtmlContext(exchange.getResponseHeaders());
-		exchange.sendResponseHeaders(405, responBytes.length);
-		exchange.getResponseBody().write(responBytes);
+		exchange.sendResponseHeaders(405, responseBytes.length);
+		exchange.getResponseBody().write(responseBytes);
 		exchange.getRequestBody().close();
 		exchange.close();
 	}

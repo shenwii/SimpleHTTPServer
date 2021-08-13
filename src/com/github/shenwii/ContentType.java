@@ -338,8 +338,8 @@ public class ContentType {
 
 	/**
 	 * 根据文件的后缀，返回对应html的Content-Type
-	 * @param fileExt
-	 * @return
+	 * @param fileExt 文件后缀
+	 * @return content-type
 	 */
 	public static String getContentType(String fileExt) {
 		final String defaultContentType = "application/octet-stream";

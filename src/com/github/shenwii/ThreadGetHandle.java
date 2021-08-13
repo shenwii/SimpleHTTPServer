@@ -15,7 +15,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	private final HttpExchange exchange;
 
 	private final static Map<String, FileDto> fileCache = new HashMap<>();
-	Object fileCacheLocker = new Object();
+	final Object fileCacheLocker = new Object();
 
 	public ThreadGetHandle(HttpExchange exchange) {
 		this.exchange = exchange;
@@ -24,7 +24,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	@Override
 	public void run() {
 		try {
-			System.out.println(new Date().toString() + "\t" + exchange.getRemoteAddress().getHostString() + "\t" + "GET " + URLDecoder.decode(exchange.getRequestURI().getPath(), Utils.ENCODE.name()));
+			System.out.println(new Date() + "\t" + exchange.getRemoteAddress().getHostString() + "\t" + "GET " + URLDecoder.decode(exchange.getRequestURI().getPath(), Utils.ENCODE.name()));
 			File accessedFile = new File(new File(".").getPath() + URLDecoder.decode(exchange.getRequestURI().getPath(), Utils.ENCODE.name()));
 			//当访问的资源不存在时，返回404
 			if(!accessedFile.exists()) {
@@ -45,6 +45,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 				doParseFile(exchange, accessedFile);
 			}
 		} catch(Throwable e) {
+			e.printStackTrace();
 			try {
 				String responString = e.getMessage();
 				byte[] responBytes = Utils.toBytes(responString);
@@ -62,8 +63,8 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 
 	/**
 	 * 返回404响应
-	 * @param exchange
-	 * @throws IOException
+	 * @param exchange 交换
+	 * @throws IOException IO异常
 	 */
 	private void doNotFound(HttpExchange exchange) throws IOException {
 		String responString = "Page Not Found";
@@ -76,9 +77,9 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 
 	/**
 	 * 遍历文件夹下的所有文件
-	 * @param exchange
-	 * @param dir
-	 * @throws IOException
+	 * @param exchange 交换
+	 * @param dir 文件夹
+	 * @throws IOException IO异常
 	 */
 	private void doListDirectory(HttpExchange exchange, File dir) throws IOException {
 		byte[] responBytes = parseDirectoryHtml(dir, exchange.getRequestURI().getPath());
@@ -91,13 +92,13 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	/**
 	 * 解析文件，返回文件内容
 	 * 支持断点续传功能
-	 * @param exchange
-	 * @param file
-	 * @throws IOException
+	 * @param exchange 交换
+	 * @param file 文件
+	 * @throws IOException IO异常
 	 */
 	private void doParseFile(HttpExchange exchange, File file) throws IOException, InterruptedException {
 		setFileContext(exchange.getResponseHeaders(), file);
-		FileDto fileDto = null;
+		FileDto fileDto;
 		synchronized (fileCacheLocker) {
 			fileDto = fileCache.get(file.getAbsolutePath());
 			if((fileDto == null) || (file.lastModified() != fileDto.getLastModified() || file.length() != fileDto.getFileSize())) {
@@ -112,7 +113,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 			}
 		}
 		synchronized (fileDto) {
-			if(fileDto.isHandling) {
+			if(fileDto.isHandling()) {
 				fileDto.wait();
 			}
 		}
@@ -158,7 +159,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 			if(ranges != null && ranges.size() != 0)
 				range = ranges.get(0);
 			t: while(true) {
-				if((ifRange == null) || (ifRange != null && (ifRange.equals(md5) || ifRange.equals(modifiedDate)))) {
+				if((ifRange == null) || (ifRange.equals(md5) || ifRange.equals(modifiedDate))) {
 					while(true) {
 						long readEnd;
 						if(range == null)
@@ -166,21 +167,21 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 						String[] parms = range.split("=");
 						if(parms.length != 2)
 							break;
-						if(!parms[0].trim().toLowerCase().equals("bytes"))
+						if(!parms[0].trim().equalsIgnoreCase("bytes"))
 							break;
 						if(!parms[1].contains("-"))
 							break;
 						try {
 							String[] bs = parms[1].split("-");
 							if(bs[0].equals("")) {
-								readStart = file.length() - Long.valueOf(bs[1]);
+								readStart = file.length() - Long.parseLong(bs[1]);
 								readEnd = file.length() - 1;
 							} else if(bs.length == 1 || bs[1].equals("")) {
-								readStart = Long.valueOf(bs[0]);
+								readStart = Long.parseLong(bs[0]);
 								readEnd = file.length() - 1;
 							} else {
-								readStart = Long.valueOf(bs[0]);
-								readEnd = Long.valueOf(bs[1]);
+								readStart = Long.parseLong(bs[0]);
+								readEnd = Long.parseLong(bs[1]);
 								if(readEnd <= readStart)
 									break;
 							}
@@ -218,20 +219,20 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 
 	/**
 	 * 遍历文件夹下所有文件，生成html内容
-	 * @param dir
-	 * @param url
-	 * @return
+	 * @param dir 文件夹
+	 * @param url 当前url
+	 * @return 字节数组
 	 */
 	private byte[] parseDirectoryHtml(File dir, String url) {
 		StringBuilder html = new StringBuilder();
 		html.append("<html>\n");
-		html.append("<title>Directory listing for " + url + "</title>\n");
-		html.append("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=" + Utils.ENCODE.name() + "\" />\n");
+		html.append("<title>Directory listing for ").append(url).append("</title>\n");
+		html.append("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=").append(Utils.ENCODE.name()).append("\" />\n");
 		html.append("<body>\n");
-		html.append("<h2>Directory listing for " + url + "</h2>\n");
+		html.append("<h2>Directory listing for ").append(url).append("</h2>\n");
 		html.append("<hr>\n");
 		html.append("<ul>\n");
-		List<File> files = Arrays.asList(dir.listFiles());
+		List<File> files = Arrays.asList(Objects.requireNonNull(dir.listFiles()));
 		//将文件夹下的文件进行排序，规则为：文件夹优先于文件，然后根据名字排序
 		files.sort((f1, f2)->{
 			if(f1.isDirectory() && !f2.isDirectory())
@@ -244,8 +245,8 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 		for(File f: files) {
 			String fileName = f.getName();
 			try {
-				html.append("<li><a href=\"" + URLEncoder.encode(fileName, Utils.ENCODE.name()) + (f.isDirectory()? "/": "") + "\">" + fileName + (f.isDirectory()? "/": "") + "</a></li>\n");
-			} catch (UnsupportedEncodingException e) {}
+				html.append("<li><a href=\"").append(URLEncoder.encode(fileName, Utils.ENCODE.name())).append(f.isDirectory() ? "/" : "").append("\">").append(fileName).append(f.isDirectory() ? "/" : "").append("</a></li>\n");
+			} catch (UnsupportedEncodingException ignored) {}
 		}
 		html.append("</ul>\n");
 		html.append("<hr>\n");
@@ -256,8 +257,8 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 
 	/**
 	 * 设置响应的Content-type
-	 * @param headers
-	 * @param file
+	 * @param headers http头
+	 * @param file 文件
 	 */
 	private void setFileContext(Headers headers, File file) {
 		String ct;
@@ -271,7 +272,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 		headers.set("Content-type", ct);
 	}
 
-	class FileDto {
+	private static class FileDto {
 		private File file;
 		private long lastModified;
 		private long fileSize;
@@ -319,7 +320,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 		}
 	}
 
-	class FileMd5sumThread extends Thread {
+	private static class FileMd5sumThread extends Thread {
 		final private FileDto fileDto;
 
 		public FileMd5sumThread(FileDto fileDto) {
@@ -331,8 +332,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 			String md5 = null;
 			try{
 				md5 = Utils.md5Sum(fileDto.getFile());
-			} catch (IOException e) {
-			}
+			} catch (Exception ignored) {}
 			synchronized (fileDto) {
 				fileDto.setMd5(md5);
 				fileDto.notifyAll();
