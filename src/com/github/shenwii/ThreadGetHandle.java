@@ -44,15 +44,17 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 				//如果该资源为文件时，则直接返回该文件内容
 				doParseFile(exchange, accessedFile);
 			}
-		} catch(IOException | InterruptedException e) {
-			String responString = e.getMessage();
-			byte[] responBytes = Utils.toBytes(responString);
-			Utils.setHtmlContext(exchange.getResponseHeaders());
+		} catch(Throwable e) {
 			try {
+				String responString = e.getMessage();
+				byte[] responBytes = Utils.toBytes(responString);
+				Utils.setHtmlContext(exchange.getResponseHeaders());
 				exchange.sendResponseHeaders(500, responBytes.length);
 				exchange.getResponseBody().write(responBytes);
 				exchange.getRequestBody().close();
-			} catch(IOException e1) {}
+			} catch(Throwable e1) {
+				e1.printStackTrace();
+			}
 		} finally {
 			exchange.close();
 		}
