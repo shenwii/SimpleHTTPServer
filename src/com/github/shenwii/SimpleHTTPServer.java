@@ -6,7 +6,7 @@ import java.net.InetSocketAddress;
 import com.sun.net.httpserver.HttpServer;
 
 public class SimpleHTTPServer{
-	final public static String VERSION = "1.0.1";
+	final public static String VERSION = "1.0.2";
 	private static String host = "0.0.0.0";
 	private static int port = 8000;
 	public static void main(String[] args) throws IOException {

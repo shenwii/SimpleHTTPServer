@@ -24,8 +24,8 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	@Override
 	public void run() {
 		try {
-			System.out.println(new Date() + "\t" + exchange.getRemoteAddress().getHostString() + "\t" + "GET " + URLDecoder.decode(exchange.getRequestURI().getPath(), Utils.ENCODE.name()));
-			File accessedFile = new File(new File(".").getPath() + URLDecoder.decode(exchange.getRequestURI().getPath(), Utils.ENCODE.name()));
+			System.out.println(new Date() + "\t" + exchange.getRemoteAddress().getHostString() + "\t" + "GET " + URLDecoder.decode(exchange.getRequestURI().getRawPath(), Utils.ENCODE.name()));
+			File accessedFile = new File(new File(".").getPath() + URLDecoder.decode(exchange.getRequestURI().getRawPath(), Utils.ENCODE.name()));
 			//当访问的资源不存在时，返回404
 			if(!accessedFile.exists()) {
 				doNotFound(exchange);
@@ -52,11 +52,13 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 				Utils.setHtmlContext(exchange.getResponseHeaders());
 				exchange.sendResponseHeaders(500, responBytes.length);
 				exchange.getResponseBody().write(responBytes);
-				exchange.getRequestBody().close();
 			} catch(Throwable e1) {
 				e1.printStackTrace();
 			}
 		} finally {
+			try {
+				exchange.getRequestBody().close();
+			} catch (IOException ignored) { }
 			exchange.close();
 		}
 	}
@@ -72,7 +74,6 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 		Utils.setHtmlContext(exchange.getResponseHeaders());
 		exchange.sendResponseHeaders(404, responBytes.length);
 		exchange.getResponseBody().write(responBytes);
-		exchange.getRequestBody().close();
 	}
 
 	/**
@@ -82,11 +83,10 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	 * @throws IOException IO异常
 	 */
 	private void doListDirectory(HttpExchange exchange, File dir) throws IOException {
-		byte[] responBytes = parseDirectoryHtml(dir, exchange.getRequestURI().getPath());
+		byte[] responBytes = parseDirectoryHtml(dir, exchange.getRequestURI().getRawPath());
 		Utils.setHtmlContext(exchange.getResponseHeaders());
 		exchange.sendResponseHeaders(200, responBytes.length);
 		exchange.getResponseBody().write(responBytes);
-		exchange.getRequestBody().close();
 	}
 
 	/**
