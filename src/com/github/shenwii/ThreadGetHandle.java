@@ -83,7 +83,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	 * @throws IOException IO异常
 	 */
 	private void doListDirectory(HttpExchange exchange, File dir) throws IOException {
-		byte[] responBytes = parseDirectoryHtml(dir, exchange.getRequestURI().getRawPath());
+		byte[] responBytes = parseDirectoryHtml(dir, URLDecoder.decode(exchange.getRequestURI().getRawPath(), Utils.ENCODE.name()));
 		Utils.setHtmlContext(exchange.getResponseHeaders());
 		exchange.sendResponseHeaders(200, responBytes.length);
 		exchange.getResponseBody().write(responBytes);
