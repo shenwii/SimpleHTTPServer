@@ -17,6 +17,7 @@ public class SimpleHTTPServer {
 	private static int port = 8000;
 
 	public static void main(String[] args) throws Exception {
+		boolean useHttps = false;
 		String publicKeyFilePath = null;
 		String privateKeyFilePath = null;
 		for(int i = 0; i < args.length; i++) {
@@ -45,13 +46,14 @@ public class SimpleHTTPServer {
 		if(publicKeyFilePath == null && privateKeyFilePath == null) {
 			server = HttpServer.create(new InetSocketAddress(host, port), 0);
 		} else if(publicKeyFilePath != null && privateKeyFilePath != null) {
+			useHttps = true;
 			server = HttpsServer.create(new InetSocketAddress(host, port), 0);
 			((HttpsServer) server).setHttpsConfigurator(new HttpsConfigurator(createSSLContext(publicKeyFilePath, privateKeyFilePath)));
 		} else {
 			System.err.println("公钥文件和私钥文件必须同时存在");
 			System.exit(1);
 		}
-		System.out.println("Serving HTTP on " + host + " port " + port + " ...");
+		System.out.println("Serving " + (useHttps? "HTTPS": "HTTP") + " on " + host + " port " + port + " ...");
 		server.createContext("/", new SimpleHTTPHandle());
 		server.start();
 	}
