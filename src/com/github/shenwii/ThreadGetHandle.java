@@ -3,6 +3,7 @@ package com.github.shenwii;
 import java.io.*;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.sun.net.httpserver.Headers;
@@ -14,12 +15,11 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	
 	private final HttpExchange exchange;
 
-	private final static Map<String, FileDto> fileCache = new HashMap<>();
-	final Object fileCacheLocker = new Object();
-
 	public ThreadGetHandle(HttpExchange exchange) {
 		this.exchange = exchange;
 	}
+
+	private boolean headerSend = false;
 
 	@Override
 	public void run() {
@@ -47,11 +47,13 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 		} catch(Throwable e) {
 			e.printStackTrace();
 			try {
-				String responString = e.getMessage();
-				byte[] responBytes = Utils.toBytes(responString);
-				Utils.setHtmlContext(exchange.getResponseHeaders());
-				exchange.sendResponseHeaders(500, responBytes.length);
-				exchange.getResponseBody().write(responBytes);
+				if(!headerSend) {
+					String responseString = e.getMessage();
+					byte[] responseBytes = Utils.toBytes(responseString);
+					Utils.setHtmlContext(exchange.getResponseHeaders());
+					exchange.sendResponseHeaders(500, responseBytes.length);
+					exchange.getResponseBody().write(responseBytes);
+				}
 			} catch(Throwable e1) {
 				e1.printStackTrace();
 			}
@@ -69,11 +71,12 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	 * @throws IOException IO异常
 	 */
 	private void doNotFound(HttpExchange exchange) throws IOException {
-		String responString = "Page Not Found";
-		byte[] responBytes = Utils.toBytes(responString);
+		String responseString = "Page Not Found";
+		byte[] responseBytes = Utils.toBytes(responseString);
 		Utils.setHtmlContext(exchange.getResponseHeaders());
-		exchange.sendResponseHeaders(404, responBytes.length);
-		exchange.getResponseBody().write(responBytes);
+		exchange.sendResponseHeaders(404, responseBytes.length);
+		headerSend = true;
+		exchange.getResponseBody().write(responseBytes);
 	}
 
 	/**
@@ -83,10 +86,11 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	 * @throws IOException IO异常
 	 */
 	private void doListDirectory(HttpExchange exchange, File dir) throws IOException {
-		byte[] responBytes = parseDirectoryHtml(dir, URLDecoder.decode(exchange.getRequestURI().getRawPath(), Utils.ENCODE.name()));
+		byte[] responseBytes = parseDirectoryHtml(dir, URLDecoder.decode(exchange.getRequestURI().getRawPath(), Utils.ENCODE.name()));
 		Utils.setHtmlContext(exchange.getResponseHeaders());
-		exchange.sendResponseHeaders(200, responBytes.length);
-		exchange.getResponseBody().write(responBytes);
+		exchange.sendResponseHeaders(200, responseBytes.length);
+		headerSend = true;
+		exchange.getResponseBody().write(responseBytes);
 	}
 
 	/**
@@ -96,52 +100,36 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 	 * @param file 文件
 	 * @throws IOException IO异常
 	 */
-	private void doParseFile(HttpExchange exchange, File file) throws IOException, InterruptedException {
+	private void doParseFile(HttpExchange exchange, File file) throws IOException {
 		setFileContext(exchange.getResponseHeaders(), file);
-		FileDto fileDto;
-		synchronized (fileCacheLocker) {
-			fileDto = fileCache.get(file.getAbsolutePath());
-			if((fileDto == null) || (file.lastModified() != fileDto.getLastModified() || file.length() != fileDto.getFileSize())) {
-				fileDto = new FileDto();
-				fileDto.setFile(file);
-				fileDto.setLastModified(file.lastModified());
-				fileDto.setFileSize(file.length());
-				fileDto.setHandling(true);
-				fileCache.put(file.getAbsolutePath(), fileDto);
-				FileMd5sumThread fileMd5sumThread = new FileMd5sumThread(fileDto);
-				new Thread(fileMd5sumThread).start();
-			}
-		}
-		synchronized (fileDto) {
-			if(fileDto.isHandling()) {
-				fileDto.wait();
-			}
-		}
-		String md5 = fileDto.getMd5();
-		if(md5 == null)
-			throw new IOException("计算MD5失败");
-		String modifiedDate = Utils.dateToString(new Date(fileDto.getLastModified()));
+		long lastModified = file.lastModified();
+		ByteBuffer byteBuffer = ByteBuffer.allocate(8);
+		byteBuffer.putLong(lastModified);
+		String md5 = Utils.md5String(byteBuffer.array());
+		String modifiedDate = Utils.dateToString(new Date(lastModified));
 		exchange.getResponseHeaders().set("accept-ranges", "bytes");
 		exchange.getResponseHeaders().set("ETag", md5);
 		exchange.getResponseHeaders().set("Last-Modified", modifiedDate);
 		{
-			List<String> etags = exchange.getRequestHeaders().get("if-none-match");
+			List<String> etagList = exchange.getRequestHeaders().get("if-none-match");
 			String etag = null;
-			if(etags != null && etags.size() != 0)
-				etag = etags.get(0);
-			List<String> modifieds  = exchange.getRequestHeaders().get("if-modified-since");
+			if(etagList != null && etagList.size() != 0)
+				etag = etagList.get(0);
+			List<String> modifiedList  = exchange.getRequestHeaders().get("if-modified-since");
 			String modified = null;
-			if(modifieds != null && modifieds.size() != 0)
-				modified = modifieds.get(0);
+			if(modifiedList != null && modifiedList.size() != 0)
+				modified = modifiedList.get(0);
 			if(etag != null) {
 				if(md5.equals(etag)) {
 					exchange.sendResponseHeaders(304, -1);
+					headerSend = true;
 					return;
 				}
 			} else {
 				if(modified != null) {
 					if(modifiedDate.equals(modified)) {
 						exchange.sendResponseHeaders(304, -1);
+						headerSend = true;
 						return;
 					}
 				}
@@ -188,6 +176,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 							readLength = readEnd - readStart + 1;
 							exchange.getResponseHeaders().set("Content-Range", "bytes " + readStart + "-" + readEnd + "/" + file.length());
 							exchange.sendResponseHeaders(206, readLength);
+							headerSend = true;
 							break t;
 						} catch(NumberFormatException e) {
 							break;
@@ -197,6 +186,7 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 				readStart = 0L;
 				readLength = file.length();
 				exchange.sendResponseHeaders(200, file.length());
+				headerSend = true;
 				break;
 			}
 		}
@@ -272,72 +262,4 @@ public class ThreadGetHandle implements ThreadMethodHandle {
 		headers.set("Content-type", ct);
 	}
 
-	private static class FileDto {
-		private File file;
-		private long lastModified;
-		private long fileSize;
-		private String md5;
-		private boolean isHandling;
-
-		public File getFile() {
-			return file;
-		}
-
-		public void setFile(File file) {
-			this.file = file;
-		}
-
-		public long getLastModified() {
-			return lastModified;
-		}
-
-		public void setLastModified(long lastModified) {
-			this.lastModified = lastModified;
-		}
-
-		public long getFileSize() {
-			return fileSize;
-		}
-
-		public void setFileSize(long fileSize) {
-			this.fileSize = fileSize;
-		}
-
-		public String getMd5() {
-			return md5;
-		}
-
-		public void setMd5(String md5) {
-			this.md5 = md5;
-		}
-
-		public boolean isHandling() {
-			return isHandling;
-		}
-
-		public void setHandling(boolean handling) {
-			isHandling = handling;
-		}
-	}
-
-	private static class FileMd5sumThread extends Thread {
-		final private FileDto fileDto;
-
-		public FileMd5sumThread(FileDto fileDto) {
-			this.fileDto = fileDto;
-		}
-
-		@Override
-		public void run() {
-			String md5 = null;
-			try{
-				md5 = Utils.md5Sum(fileDto.getFile());
-			} catch (Exception ignored) {}
-			synchronized (fileDto) {
-				fileDto.setMd5(md5);
-				fileDto.notifyAll();
-				fileDto.setHandling(false);
-			}
-		}
-	}
 }

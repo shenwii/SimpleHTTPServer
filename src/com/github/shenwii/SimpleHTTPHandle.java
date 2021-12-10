@@ -14,7 +14,7 @@ public class SimpleHTTPHandle implements HttpHandler {
 	
 	public SimpleHTTPHandle() {
 		int staticThread = 5;
-		int maxThread = 20;
+		int maxThread = 100;
 		try {
 			String p = System.getProperty("SimpleHTTPServer.staticThread");
 			if(p != null)

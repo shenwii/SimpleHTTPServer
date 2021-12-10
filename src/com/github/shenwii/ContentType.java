@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ContentType {
-	private final static Map<String, String>CONTENT_MAP = new HashMap<String, String>() {
+	private final static Map<String, String>CONTENT_MAP = new HashMap<>() {
 		private static final long serialVersionUID = -8485322144860410145L;
 		{
 			put("001", "application/x-001");

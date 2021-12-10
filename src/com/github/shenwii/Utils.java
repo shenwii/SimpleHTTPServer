@@ -1,11 +1,7 @@
 package com.github.shenwii;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -61,34 +57,6 @@ public class Utils {
 			buf[k++] = hexDigits[b & 0xf];
 		}
 		return new String(buf);
-	}
-
-	/**
-	 * 计算文件的md5值
-	 * @param file 文件
-	 * @return 文件的MD5值
-	 * @throws IOException IO异常
-	 */
-	public static String md5Sum(File file) throws Exception {
-		final int BUFFER_LEN = 4096 * 4096;
-		FileInputStream fis = null;
-		MessageDigest md = MessageDigest.getInstance("MD5");
-		try {
-			int c;
-			byte[] buffer = new byte[BUFFER_LEN];
-			fis = new FileInputStream(file);
-			while((c = fis.read(buffer)) > 0) {
-				md.update(buffer, 0, c);
-			}
-			return md5String(md.digest());
-		} finally {
-			if(fis != null)
-				try {
-					fis.close();
-				} catch(IOException e) {
-					e.printStackTrace();
-				}
-		}
 	}
 
 }
