@@ -12,7 +12,7 @@ import nl.altindag.ssl.util.PemUtils;
 import javax.net.ssl.*;
 
 public class SimpleHTTPServer {
-	final public static String VERSION = "1.0.2";
+	final public static String VERSION = "1.0.3";
 	private static String host = "0.0.0.0";
 	private static int port = 8000;
 

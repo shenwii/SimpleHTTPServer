@@ -17,4 +17,4 @@
 
 ## 使用方法
 
-    java -jar SimpleHTTPServer.jar [BIND_HOST] [BIND_PORT]
+    java -jar SimpleHTTPServer.jar [BIND_HOST] [BIND_PORT] [PublicKeyFile] [PrivateKeyFile]
